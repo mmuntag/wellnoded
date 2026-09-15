@@ -24,7 +24,7 @@ import sys
 import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATIC = os.path.join(HERE, "static")
@@ -264,11 +264,39 @@ class Store:
 
 # ---------------------------------------------------------------- export
 
-def build_export(doc, title):
+def find_node(doc, node_id):
+    stack = list(doc.get("children") or [])
+    while stack:
+        n = stack.pop()
+        if n.get("id") == node_id:
+            return n
+        stack.extend(n.get("children") or [])
+    return None
+
+
+def subtree(doc, node):
+    """The slice of doc rooted at node, as (doc, title, root)."""
+    sub = {"header": [], "children": node.get("children") or [],
+           "child_style": node.get("child_style") or "bullet"}
+    root = {"title": node.get("title") or "", "body": node.get("body") or "",
+            "done": bool(node.get("done"))}
+    return sub, plain_text(root["title"]) or "untitled", root
+
+
+MD_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+
+
+def plain_text(s):
+    """Rough markdown -> text, good enough for a filename or a tab title."""
+    return " ".join(re.sub(r"[*_`~$]", "", MD_LINK_RE.sub(r"\1", s)).split())
+
+
+def build_export(doc, title, root=None):
     def read(name):
         with open(os.path.join(STATIC, name), encoding="utf-8") as f:
             return f.read()
-    data = json.dumps({"doc": doc, "title": title}, ensure_ascii=False)
+    data = json.dumps({"doc": doc, "title": title, "root": root},
+                      ensure_ascii=False)
     return """<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -345,9 +373,16 @@ class Handler(BaseHTTPRequestHandler):
                                     "file": self.store.path})
         if p == "/api/export":
             doc, _ = self.store.load()
-            title = doc_title(doc, self.store.path)
+            title, root = doc_title(doc, self.store.path), None
+            want = parse_qs(urlparse(self.path).query).get("root", [None])[0]
+            if want:
+                node = find_node(doc, want)
+                if not node:
+                    return self._send(404, "no such node",
+                                      "text/plain; charset=utf-8")
+                doc, title, root = subtree(doc, node)
             fname = re.sub(r"[^\w.-]+", "-", title).strip("-") or "wellnoded"
-            html = build_export(doc, title)
+            html = build_export(doc, title, root)
             return self._send(200, html, "text/html; charset=utf-8",
                               {"Content-Disposition":
                                'attachment; filename="%s.html"' % fname})
@@ -401,14 +436,23 @@ def main():
     ap.add_argument("--no-backups", action="store_true")
     ap.add_argument("--export", metavar="OUT",
                     help="write a read-only html export and exit")
+    ap.add_argument("--export-root", metavar="ID",
+                    help="with --export, export only the subtree under node ID")
     args = ap.parse_args()
 
     store = Store(args.file, backups=not args.no_backups)
 
     if args.export:
         doc, _ = store.load()
+        title, root = doc_title(doc, store.path), None
+        if args.export_root:
+            node = find_node(doc, args.export_root)
+            if not node:
+                sys.stderr.write("no such node: %s\n" % args.export_root)
+                return 1
+            doc, title, root = subtree(doc, node)
         with open(args.export, "w", encoding="utf-8") as f:
-            f.write(build_export(doc, doc_title(doc, store.path)))
+            f.write(build_export(doc, title, root))
         print("wrote %s" % args.export)
         return
 
@@ -424,4 +468,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

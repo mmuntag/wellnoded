@@ -225,6 +225,9 @@
       var style = parentNode ? parentNode.child_style : state.doc.child_style;
       kids.forEach(function (n, i) { host.appendChild(nodeEl(n, i + 1, style)); });
     }
+    $("export").title = state.zoom
+      ? "Download a read-only html copy of this subtree"
+      : "Download a read-only html copy";
     $("hide").className = "btn" + (state.hideDone ? " on" : "");
     $("up").disabled = !state.zoom;
     $("home").disabled = !state.zoom;
@@ -715,7 +718,9 @@
     commitEdit(true); render();
   };
   $("export").onclick = function () {
-    commitEdit(); save(true).then(function () { location.href = "/api/export"; });
+    commitEdit();
+    var q = state.zoom ? "?root=" + encodeURIComponent(state.zoom) : "";
+    save(true).then(function () { location.href = "/api/export" + q; });
   };
   window.addEventListener("hashchange", function () {
     var id = location.hash.replace(/^#/, "") || null;

@@ -50,11 +50,14 @@ node` gives `http://localhost:8722/#a7k`, and opening it lands zoomed into that 
 matter how many of its children are done — striking is per node, never inherited.
 
 **export** downloads a single self-contained `.html`: no editing, but zoom, collapse,
-hide-done and `#id` links all still work, offline, from `file://`. Same thing on the
-command line:
+hide-done and `#id` links all still work, offline, from `file://`. It exports what you
+are looking at — zoomed into a node, you get that node and its descendants, with the
+node itself as the export's title; at the root you get the whole outline. Same thing on
+the command line:
 
 ```
 python3 server.py --export outline.html
+python3 server.py --export chapter.html --export-root fm1   # just that subtree
 ```
 
 ### Keys
@@ -108,6 +111,7 @@ overwritten silently.
 python3 server.py --file notes.md --port 8722 --host 127.0.0.1
                   --no-backups            # skip .wellnoded-backups/
                   --export out.html       # write the read-only export and exit
+                  --export-root fm1       # with --export: only that node's subtree
 ```
 
 `--host 0.0.0.0` exposes it to your LAN/VPN. There is no authentication of any kind,

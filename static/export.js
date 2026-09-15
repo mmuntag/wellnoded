@@ -4,6 +4,7 @@
   var R = window.WNRender;
   var DOC = window.WN_EXPORT.doc;
   var DOCTITLE = window.WN_EXPORT.title;
+  var DOCROOT = window.WN_EXPORT.root || null;   // set when a subtree was exported
   var zoom = null, hideDone = false;
   var collapsed = new Set();
 
@@ -141,6 +142,13 @@
       zn.innerHTML = root.body && root.body.trim() ? R.renderBody(root.body) : "";
       zn.style.color = "var(--dim)";
       document.title = R.plain(root.title) + " - " + DOCTITLE;
+    } else if (DOCROOT) {
+      dt.innerHTML = R.renderInline(DOCROOT.title);
+      dt.style.textDecoration = DOCROOT.done ? "line-through" : "";
+      zn.innerHTML = DOCROOT.body && DOCROOT.body.trim()
+        ? R.renderBody(DOCROOT.body) : "";
+      zn.style.color = "var(--dim)";
+      document.title = DOCTITLE || "wellnoded";
     } else {
       dt.textContent = DOCTITLE || "";
       dt.style.textDecoration = "";
