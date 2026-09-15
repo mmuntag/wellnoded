@@ -17,6 +17,50 @@ the note above.
 python3 server.py            # http://localhost:8722, editing ./TODO.wellnoded or ./data.md
 ```
 
+## What it is
+
+An **outliner** — the Workflowy / Roam / Logseq shape of program. Not a notes app
+with folders and not a task manager with projects and due dates: one endlessly
+nestable bulleted tree that you write into, where every bullet is both a line of
+text and a container for more lines.
+
+Three things fall out of that shape, and they are most of the app:
+
+- **Everything is one document.** There is no *new note* button, no filing step.
+  Ideas get typed in wherever you are and moved into shape later with `Tab` and
+  `Alt+↑`. Structure is whatever the indentation currently says it is.
+- **Any bullet can become the screen.** Click a bullet and it becomes the root:
+  its subtree is now the whole outline, with a breadcrumb to climb back out. A
+  project, a chapter, a shopping list and a year of meeting notes are the same
+  kind of object at different depths, and you work in whichever one you zoomed
+  into.
+- **Done is a strikethrough, not a checkbox column.** Anything that can be a task
+  is a task; `Ctrl+Enter` strikes it, *hide done* makes it disappear, and nothing
+  else about the item has to change.
+
+A bullet carries a title and, optionally, body text under it — so the same tree
+holds one-line todos and several paragraphs of prose without you deciding up front
+which kind of thing you are writing. Inline formatting and LaTeX render in place.
+
+What makes it different from the apps it imitates is what it runs on: **the
+outline is a markdown file on your disk**, not a database, an account or a sync
+service. `data.md` is the document, in the format shown below; the server is a
+single dependency-free `server.py` that reads it, serves an editor, and writes it
+back. You can edit that file in vim at the same time, `git commit` it, `grep` it,
+or delete the program entirely and still have everything you wrote in a text file
+that reads fine without it.
+
+That property is what `![[…]]` mounts (below) extend: since a document is just a
+file, one outline can pull in outlines living in other repos — or on other
+machines over `ssh` — and show the lot as one tree. A `TODO.wellnoded` per
+project, plus a hub file that lists them, gives you one screen over work scattered
+across a disk.
+
+**It is a single-user local tool.** No accounts, no authentication, no
+collaboration, no mobile app; it serves `localhost` and expects one person. See
+[Only do this on a network you trust](#only-do-this-on-a-network-you-trust) before
+binding it anywhere else.
+
 ## The file format
 
 `data.md` stays readable and hand-editable. Everything the app knows lives in it.
