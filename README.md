@@ -1,7 +1,17 @@
 # wellnoded
 
+> ### ⚠️ This app is vibe coded
+>
+> Every line of it — server, editor, parser, math renderer, tests, and this
+> README — was written by an LLM from prompts, not by a human typing code.
+> It was steered by feel and by whether the thing worked on screen, not by
+> design docs or line-by-line review. Read [What "vibe coded" means
+> here](#what-vibe-coded-means-here) before you trust it with anything you
+> care about.
+
 A superlightweight outliner. One markdown file is the database, one stdlib Python
-process is the server, no dependencies anywhere.
+process is the server, no dependencies anywhere. Written entirely by an LLM — see
+the note above.
 
 ```
 python3 server.py            # http://localhost:8722, editing ./TODO.wellnoded or ./data.md
@@ -204,6 +214,32 @@ current directory, so running it inside a project picks up that project's file.
 `--host 0.0.0.0` exposes it to your LAN/VPN. There is no authentication of any kind,
 so only do that on a network you trust. `WELLNODED_FILE`, `WELLNODED_PORT` and
 `WELLNODED_HOST` work as environment variables too.
+
+## What "vibe coded" means here
+
+This project was built by prompting an LLM and keeping whatever looked and felt
+right in the browser. That is the whole methodology. Concretely:
+
+- **No human wrote the code.** A person decided what the app should do and
+  judged the result; the model produced `server.py`, everything in `static/`,
+  and this README.
+- **It was not line-by-line reviewed.** Correctness was judged by using the app
+  and by the DOM tests in `static/_test.html` passing — not by anyone reading
+  every branch of the markdown parser, the mount logic, or the ssh code.
+- **It has not been security-audited.** There is no authentication anywhere, and
+  mounts run `ssh` on your behalf. The warnings about `--host 0.0.0.0` and
+  `--no-remote` in this README are the real limits, not boilerplate.
+- **Design decisions came from vibes.** Save timings, the file format, the key
+  bindings — chosen because they felt right in use, not because they were
+  measured against alternatives.
+
+What that buys you: the file format is plain markdown you can read and fix in
+any editor, writes are atomic, and the last 20 versions live in
+`.wellnoded-backups/`. So even when the code is wrong, your notes are a text
+file you still own. Keep `data.md` in git and you have a full undo the app
+cannot take away from you.
+
+Use it, fork it, rewrite it. Just don't assume anyone vetted it.
 
 ## Layout
 
