@@ -4,7 +4,7 @@ A superlightweight outliner. One markdown file is the database, one stdlib Pytho
 process is the server, no dependencies anywhere.
 
 ```
-python3 server.py            # http://localhost:8722, editing data.md
+python3 server.py            # http://localhost:8722, editing ./TODO.wellnoded or ./data.md
 ```
 
 ## The file format
@@ -32,6 +32,7 @@ python3 server.py            # http://localhost:8722, editing data.md
 | Struck through | the whole title wrapped in `~~…~~` |
 | Body | lines under the title, indented to the title's text column |
 | Nesting | indentation, standard markdown |
+| Linked file | `![[target]]` at the end of the title — see below |
 
 Edit `data.md` in your editor whenever you like. New items without an `^id` get one
 on the next load; a title that genuinely ends in something like `^abc` is written
@@ -39,6 +40,84 @@ back escaped as `\^abc`. Collapsed/expanded state and the *hide done* switch are
 per-browser (localStorage) and deliberately kept **out** of the file.
 
 Because the file is plain markdown, `git add data.md` gives you free version history.
+
+## Linking other files
+
+Drop a `TODO.wellnoded` into each of your projects — it is a `data.md` under
+another name — and pull them all into one outline from a file that just holds
+the pointers:
+
+```markdown
+# Everything
+
+- Project A ![[../project-a/TODO.wellnoded]] ^m1x
+- The server box ![[10.1.1.12:~/git/infra/TODO.wellnoded]] ^m2y
+- Someone else's plan ![[?10.1.1.12:~/shared/plan.md]] ^m3z
+```
+
+A node whose title ends in `![[…]]` is a **mount**. Its children are not stored
+in this file — they live in the file it names, and are read and written there.
+The host file holds only the pointer, the label and the position, so the two
+files never disagree about who owns what. A title that genuinely ends in
+`![[something]]` is written back escaped as `\![[something]]`, the same trick
+the `^id` suffix already uses.
+
+| Target | Means |
+|---|---|
+| `../other/TODO.wellnoded` | relative to the file that names it |
+| `~/notes/plan.md`, `/srv/x.md` | an absolute path on this machine |
+| `10.1.1.12:~/git/x/TODO.wellnoded` | another machine, over `ssh` |
+| `user@host:/srv/x.md` | same, as a particular user |
+| `?` in front of any of those | **read-only** — shown, never written |
+
+Remote targets are scp-style and the path has to be anchored with `~` or `/`,
+so `notes:2024.md` stays an ordinary local filename (write `./notes:2024.md`
+if it is one). A relative target inside a remote file resolves on that same
+machine, so a hub on one box can fan out across a whole tree there.
+
+There is no daemon on the other end: wellnoded runs one `ssh` per read and one
+per write, using your existing keys and `BatchMode` (so it never prompts). The
+remote write is the same as the local one — temp file, `mv` into place, a
+rotated backup in `.wellnoded-backups/` beside the file — and the revision
+check happens on the remote inside the same connection, so two people editing
+the same remote file still get the conflict prompt rather than a silent
+overwrite.
+
+**In the browser** a mount is a node with a ring for a bullet and the file's
+path beside it. It starts closed and is fetched when you open it, so a hub
+listing twenty projects loads instantly and a machine that is switched off
+costs you nothing until you go looking. Once open it behaves like any other
+subtree: edit, strike, reorder, zoom in, link to it. Each file saves on its own
+schedule with its own revision, and the status light counts the files with
+unsaved changes rather than just one.
+
+Three things it deliberately will not do:
+
+- **Move a node across a file boundary.** `Tab` and `Shift+Tab` stop at the
+  edge of a mount and say so. Use *Add a node in that file* from the mount's
+  `⋯` menu to create one on the other side.
+- **Write a mount's children into the host file.** The serializer stops at a
+  mount, whatever the browser sends.
+- **Write a file it could not read.** A mount that failed to load renders as a
+  red *could not load* line with *retry* and, for a path that does not exist,
+  *create it*. A missing file is never created behind your back — a typo stays
+  a typo. The server also refuses any write to a mounted file that does not
+  carry the revision it was loaded at, so an empty screen can never be saved
+  over a file that was simply unreachable.
+
+A mount whose target is already open higher up the same chain is refused rather
+than followed, so a loop between two files is a dead end, not a hang.
+
+Permalinks grow a path: a node inside a mount is `#m1x.a7k`, and one two files
+deep is `#m1x.b2m.a7k`. Those work in the export too.
+
+### Only do this on a network you trust
+
+Mounts turn wellnoded into something that reads and writes files on other
+machines on your behalf. Combined with `--host 0.0.0.0`, which has no
+authentication of any kind, anyone who can reach the port can reach everything
+your ssh keys can. `--no-remote` refuses `host:path` mounts entirely and is
+worth setting if you ever bind to anything but localhost.
 
 ## Interface
 
@@ -50,7 +129,10 @@ node` gives `http://localhost:8722/#a7k`, and opening it lands zoomed into that 
 matter how many of its children are done — striking is per node, never inherited.
 
 **export** downloads a single self-contained `.html`: no editing, but zoom, collapse,
-hide-done and `#id` links all still work, offline, from `file://`. It exports what you
+hide-done and `#id` links all still work, offline, from `file://`. Mounts are
+followed and baked in, so the export is the whole federation in one file; a
+mount that cannot be read at that moment becomes a visible *not included* note
+rather than a silent hole or a failed export. It exports what you
 are looking at — zoomed into a node, you get that node and its descendants, with the
 node itself as the export's title; at the root you get the whole outline. Same thing on
 the command line:
@@ -66,7 +148,7 @@ python3 server.py --export chapter.html --export-root fm1   # just that subtree
 |---|---|
 | `Enter` | new node (first child if the node is open and has children, else next sibling) |
 | `Shift+Enter` | jump from title to body |
-| `Tab` / `Shift+Tab` | indent / outdent |
+| `Tab` / `Shift+Tab` | indent / outdent (stops at a mount boundary) |
 | `Alt+↑` / `Alt+↓` | move node up / down |
 | `Ctrl+Enter` | strike through / un-strike |
 | `Backspace` at the start of an empty node | delete it |
@@ -110,9 +192,14 @@ overwritten silently.
 ```
 python3 server.py --file notes.md --port 8722 --host 127.0.0.1
                   --no-backups            # skip .wellnoded-backups/
+                  --no-remote             # refuse host:path mounts, local files only
                   --export out.html       # write the read-only export and exit
                   --export-root fm1       # with --export: only that node's subtree
+                  --export-root m1x.a7k   #   ... including one inside a mount
 ```
+
+With no `--file`, wellnoded looks for `TODO.wellnoded` and then `data.md` in the
+current directory, so running it inside a project picks up that project's file.
 
 `--host 0.0.0.0` exposes it to your LAN/VPN. There is no authentication of any kind,
 so only do that on a network you trust. `WELLNODED_FILE`, `WELLNODED_PORT` and
@@ -121,11 +208,11 @@ so only do that on a network you trust. `WELLNODED_FILE`, `WELLNODED_PORT` and
 ## Layout
 
 ```
-server.py            markdown <-> json, http, atomic writes, export  (stdlib only)
+server.py            markdown <-> json, http, atomic writes, mounts, export  (stdlib only)
 data.md              your outline
 static/app.js        editor
 static/export.js     read-only viewer used by the export
 static/render.js     inline markdown + LaTeX, shared by both
 static/app.css       styling, light and dark
-static/_test.html    22 DOM tests; open http://localhost:8722/static/_test.html
+static/_test.html    42 DOM tests; open http://localhost:8722/static/_test.html
 ```

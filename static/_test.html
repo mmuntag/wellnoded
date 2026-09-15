@@ -10,20 +10,54 @@
 <div class="toast" id="toast"></div>
 <pre id="results"></pre>
 <script>
-window.__puts = [];
-var FIX = {rev:"1", file:"/x/data.md", doc:{header:["# T"], child_style:"bullet", children:[
-  {id:"aaa",title:"alpha",body:"",done:false,child_style:"bullet",children:[]},
-  {id:"bbb",title:"beta",body:"note",done:false,child_style:"bullet",children:[
-     {id:"ccc",title:"gamma",body:"",done:true,child_style:"bullet",children:[]}]}
-]}};
-window.fetch = function (url, opts) {
-  if (opts && opts.method === "PUT") {
-    window.__puts.push(JSON.parse(opts.body));
-    return Promise.resolve({ok:true, status:200, json:function(){return Promise.resolve({rev:String(Date.now())});}});
-  }
-  return Promise.resolve({ok:true, status:200, json:function(){return Promise.resolve(JSON.parse(JSON.stringify(FIX)));}});
+/* known starting point (same origin as the app, so set rather than clear) */
+localStorage.setItem("wn.collapsed", "[]");
+localStorage.setItem("wn.hideDone", "false");
+location.hash = "";
+
+function M(raw, display, ro) {
+  return { raw: raw, display: display, kind: "local", ro: !!ro };
+}
+function N(id, title, extra) {
+  var n = { id: id, title: title, body: "", done: false, mount: null,
+            child_style: "bullet", children: [] };
+  for (var k in (extra || {})) n[k] = extra[k];
+  return n;
+}
+var FILES = {
+  "": { rev: "1", file: "/x/data.md", ro: false, title: "T",
+        doc: { header: ["# T"], child_style: "bullet", children: [
+          N("aaa", "alpha"),
+          N("bbb", "beta", { body: "note", children: [N("ccc", "gamma", { done: true })] }),
+          N("mmm", "Project A", { mount: M("../a/TODO.wellnoded", "/x/a/TODO.wellnoded") }),
+          N("rrr", "Read only", { mount: M("?../b/TODO.wellnoded", "/x/b/TODO.wellnoded", true) }),
+          N("xxx", "Gone", { mount: M("../gone/TODO.wellnoded", "/x/gone/TODO.wellnoded") })
+        ] } },
+  "mmm": { rev: "5", file: "/x/a/TODO.wellnoded", ro: false, title: "Project A",
+           doc: { header: ["# Project A"], child_style: "bullet",
+                  children: [N("p01", "ship it")] } },
+  "rrr": { rev: "7", file: "/x/b/TODO.wellnoded", ro: true, title: "B",
+           doc: { header: ["# B"], child_style: "bullet",
+                  children: [N("q01", "read only thing")] } }
 };
-window.confirm = function(){ return true; };
+window.__puts = [];
+var revseq = 100;
+function resp(ok, status, obj) {
+  return Promise.resolve({ ok: ok, status: status,
+                           json: function () { return Promise.resolve(obj); } });
+}
+window.fetch = function (url, opts) {
+  var p = decodeURIComponent((url.split("path=")[1] || "").split("&")[0]);
+  if (opts && opts.method === "PUT") {
+    window.__puts.push({ path: p, body: JSON.parse(opts.body) });
+    return resp(true, 200, { rev: "r" + (++revseq), path: p });
+  }
+  var f = FILES[p];
+  if (!f) return resp(false, 404,
+    { error: "/x/gone/TODO.wellnoded does not exist", kind: "missing" });
+  return resp(true, 200, JSON.parse(JSON.stringify(f)));
+};
+window.confirm = function () { return true; };
 </script>
 <script src="/static/render.js"></script>
 <script src="/static/app.js"></script>
@@ -35,118 +69,207 @@ function chk(name, cond, extra) {
 }
 function titles() {
   return [].map.call(document.querySelectorAll("#tree .node"), function (n) {
-    return (n.dataset.id) + ":" + n.querySelector(":scope > .row .title, :scope > .row .ta-title").textContent
-           .replace(/\s+/g," ").trim() + (n.classList.contains("done") ? "*" : "");
+    return (n.dataset.id) + ":" +
+      n.querySelector(":scope > .row .title, :scope > .row .ta-title").textContent
+       .replace(/\s+/g, " ").trim() + (n.classList.contains("done") ? "*" : "");
   }).join(" | ");
 }
-function editNode(id) {
-  var ta = document.querySelector('.node[data-id="'+id+'"] .ta-title');
+function ids() {
+  return [].map.call(document.querySelectorAll("#tree .node"),
+                     function (n) { return n.dataset.id; });
+}
+function nodeAt(uid) { return document.querySelector('.node[data-id="' + uid + '"]'); }
+function editNode(uid) {
+  var ta = document.querySelector('.node[data-id="' + uid + '"] .ta-title');
   if (!ta) {
-    document.querySelector('.node[data-id="'+id+'"] .title').click();
-    ta = document.querySelector('.node[data-id="'+id+'"] .ta-title');
+    nodeAt(uid).querySelector(".title").click();
+    ta = document.querySelector('.node[data-id="' + uid + '"] .ta-title');
   }
   return ta;
 }
 function key(el, k, opt) {
-  var e = new KeyboardEvent("keydown", Object.assign({key:k, bubbles:true, cancelable:true}, opt||{}));
+  var e = new KeyboardEvent("keydown", Object.assign({ key: k, bubbles: true, cancelable: true }, opt || {}));
   el.dispatchEvent(e); return e;
 }
 function type(el, v) {
-  el.value = v; el.dispatchEvent(new Event("input", {bubbles:true}));
+  el.value = v; el.dispatchEvent(new Event("input", { bubbles: true }));
 }
-function run() {
-  chk("initial tree", titles() === "aaa:alpha | bbb:beta | ccc:gamma*", titles());
+function putsFor(p) {
+  return window.__puts.filter(function (x) { return x.path === p; });
+}
 
-  // click title -> editor
+/* ------------------------------------------------------- the base editor */
+function phase1() {
+  chk("initial tree", titles().indexOf("aaa:alpha | bbb:beta | ccc:gamma*") === 0, titles());
+  chk("mounts render", ids().indexOf("mmm") > 0 && ids().indexOf("rrr") > 0, ids().join(","));
+
   document.querySelector('.node[data-id="aaa"] .title').click();
   var ta = document.querySelector('.node[data-id="aaa"] .ta-title');
   chk("click opens editor", !!ta && document.activeElement === ta);
 
-  // type + Enter -> new sibling, focused
   type(ta, "alpha edited");
   key(ta, "Enter");
-  var ids = [].map.call(document.querySelectorAll("#tree .node"), function(n){return n.dataset.id;});
-  chk("Enter creates a sibling", ids.length === 4, ids.join(","));
-  var newId = ids[1];
-  var ta2 = document.querySelector('.node[data-id="'+newId+'"] .ta-title');
+  var list = ids();
+  chk("Enter creates a sibling", list.length === 7, list.join(","));
+  window.__newId = list[1];
+  var ta2 = document.querySelector('.node[data-id="' + window.__newId + '"] .ta-title');
   chk("new node is focused", !!ta2 && document.activeElement === ta2);
-  chk("3-char id", /^[0-9a-z]{3}$/.test(newId), newId);
-  chk("edit was kept", document.querySelector('.node[data-id="aaa"] .title').textContent.indexOf("alpha edited") === 0,
+  chk("3-char id", /^[0-9a-z]{3}$/.test(window.__newId), window.__newId);
+  chk("edit was kept",
+      document.querySelector('.node[data-id="aaa"] .title').textContent.indexOf("alpha edited") === 0,
       document.querySelector('.node[data-id="aaa"] .title').textContent);
 
-  // Tab -> indent under aaa
   type(ta2, "nested");
   key(ta2, "Tab");
-  chk("Tab indents", !!document.querySelector('.node[data-id="aaa"] > .kids > .node[data-id="'+newId+'"]'), titles());
-  var ta3 = document.querySelector('.node[data-id="'+newId+'"] .ta-title');
+  chk("Tab indents", !!document.querySelector('.node[data-id="aaa"] > .kids > .node[data-id="' + window.__newId + '"]'), titles());
+  var ta3 = document.querySelector('.node[data-id="' + window.__newId + '"] .ta-title');
   chk("focus survives indent", document.activeElement === ta3);
 
-  // Shift+Tab -> back out
-  key(ta3, "Tab", {shiftKey:true});
-  chk("Shift+Tab outdents", !!document.querySelector('#tree > .node[data-id="'+newId+'"]'), titles());
+  key(ta3, "Tab", { shiftKey: true });
+  chk("Shift+Tab outdents", !!document.querySelector('#tree > .node[data-id="' + window.__newId + '"]'), titles());
 
-  // Ctrl+Enter -> strike
-  var ta4 = document.querySelector('.node[data-id="'+newId+'"] .ta-title');
-  key(ta4, "Enter", {ctrlKey:true});
-  chk("Ctrl+Enter strikes", document.querySelector('.node[data-id="'+newId+'"]').classList.contains("done"), titles());
+  var ta4 = document.querySelector('.node[data-id="' + window.__newId + '"] .ta-title');
+  key(ta4, "Enter", { ctrlKey: true });
+  chk("Ctrl+Enter strikes", nodeAt(window.__newId).classList.contains("done"), titles());
 
-  // hide done
   document.getElementById("hide").click();
-  chk("hide done hides struck nodes", !document.querySelector('#tree .node[data-id="'+newId+'"]') && !document.querySelector('#tree .node[data-id="ccc"]'), titles());
+  chk("hide done hides struck nodes", !nodeAt(window.__newId) && !nodeAt("ccc"), titles());
   document.getElementById("hide").click();
-  chk("hide done restores", !!document.querySelector('#tree .node[data-id="'+newId+'"]'));
+  chk("hide done restores", !!nodeAt(window.__newId));
 
-  // Backspace on an empty node deletes it and focuses the previous one
-  document.querySelector('.node[data-id="'+newId+'"] .title').click();
-  var ta5 = document.querySelector('.node[data-id="'+newId+'"] .ta-title');
-  type(ta5, ""); ta5.setSelectionRange(0,0);
+  nodeAt(window.__newId).querySelector(".title").click();
+  var ta5 = document.querySelector('.node[data-id="' + window.__newId + '"] .ta-title');
+  type(ta5, ""); ta5.setSelectionRange(0, 0);
   key(ta5, "Backspace");
-  chk("Backspace deletes empty node", !document.querySelector('.node[data-id="'+newId+'"]'), titles());
-  chk("focus moves to previous", document.activeElement && document.activeElement.classList.contains("ta-title"),
+  chk("Backspace deletes empty node", !nodeAt(window.__newId), titles());
+  chk("focus moves to previous",
+      document.activeElement && document.activeElement.classList.contains("ta-title"),
       document.activeElement && document.activeElement.tagName);
 
-  // Alt+Down reorders (aaa is already in edit mode after the Backspace step)
   var ta6 = editNode("aaa");
-  key(ta6, "ArrowDown", {altKey:true});
-  var order = [].map.call(document.querySelectorAll("#tree > .node"), function(n){return n.dataset.id;});
+  key(ta6, "ArrowDown", { altKey: true });
+  var order = [].map.call(document.querySelectorAll("#tree > .node"), function (n) { return n.dataset.id; });
   chk("Alt+Down moves node down", order[0] === "bbb" && order[1] === "aaa", order.join(","));
 
-  // undo
   document.activeElement.blur();
-  document.dispatchEvent(new KeyboardEvent("keydown", {key:"z", ctrlKey:true, bubbles:true, cancelable:true}));
-  var order2 = [].map.call(document.querySelectorAll("#tree > .node"), function(n){return n.dataset.id;});
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true }));
+  var order2 = [].map.call(document.querySelectorAll("#tree > .node"), function (n) { return n.dataset.id; });
   chk("Ctrl+Z undoes the move", order2[0] === "aaa", order2.join(","));
 
-  // zoom
   document.querySelector('.node[data-id="bbb"] .bullet').click();
   chk("zoom shows only children", titles() === "ccc:gamma*", titles());
   chk("breadcrumb has home + node", document.querySelectorAll("#crumbs a").length === 2,
       document.querySelectorAll("#crumbs a").length);
   chk("hash is the node id", location.hash === "#bbb", location.hash);
   document.getElementById("up").click();
-  chk("up one level returns to root", titles().indexOf("aaa:") === 0, titles());
-
-  // saves happened
-  setTimeout(function () {
-    chk("PUT requests were sent", window.__puts.length > 0, window.__puts.length);
-    var last = window.__puts[window.__puts.length-1];
-    chk("payload carries rev + doc", last && last.rev && last.doc && last.doc.children.length >= 2);
-    document.getElementById("results").textContent =
-      log.join("\n") + "\n\nSUMMARY " + ok + " passed, " + bad + " failed";
-    document.title = bad ? "FAILED" : "ALLPASS";
-  }, 600);
+  chk("up one level returns to root", titles().indexOf("aaa:") >= 0, titles());
 }
+
+/* ------------------------------------------------------------- mounts */
+function phase2() {
+  chk("a mount starts closed and empty",
+      nodeAt("mmm").classList.contains("mount") && !nodeAt("mmm.p01"), titles());
+  chk("no fetch for an unopened mount", !putsFor("mmm").length);
+  nodeAt("mmm").querySelector(".twist").click();      // lazy load
+}
+function phase3() {
+  chk("expanding a mount loads its file", !!nodeAt("mmm.p01"), titles());
+  chk("its node ids are dotted uids",
+      nodeAt("mmm.p01").querySelector(".title").textContent.indexOf("ship it") === 0);
+  chk("the file it points at is shown",
+      (nodeAt("mmm").querySelector(".mpath") || {}).textContent.indexOf("a/TODO.wellnoded") > 0,
+      (nodeAt("mmm").querySelector(".mpath") || {}).textContent);
+
+  var before = putsFor("").length;
+  var ta = editNode("mmm.p01");
+  type(ta, "ship it soon");
+  key(ta, "Escape");           // commit and flush, rather than wait out the debounce
+  window.__hostPutsBefore = before;
+}
+function phase4() {
+  var mine = putsFor("mmm");
+  chk("editing inside a mount writes that file", mine.length > 0, mine.length);
+  chk("it is sent with that file's own revision",
+      mine.length && mine[0].body.rev === "5", mine.length && mine[0].body.rev);
+  chk("the edit is in the payload",
+      mine.length && mine[mine.length - 1].body.doc.children[0].title === "ship it soon");
+
+  var host = putsFor("");
+  var leaked = host.some(function (p) {
+    return JSON.stringify(p.body.doc).indexOf("ship it") >= 0;
+  });
+  chk("the host file never carries the mount's children", !leaked);
+  var mountNode = host.length &&
+    host[host.length - 1].body.doc.children.filter(function (n) { return n.id === "mmm"; })[0];
+  chk("the host file keeps only the pointer",
+      !!mountNode && mountNode.mount.raw === "../a/TODO.wellnoded" &&
+      mountNode.children.length === 0,
+      mountNode && JSON.stringify(mountNode).slice(0, 80));
+
+  // Tab across a mount boundary is refused
+  var ta = editNode("rrr");
+  key(ta, "Tab");
+  chk("indent into a mount is blocked",
+      !!document.querySelector('#tree > .node[data-id="rrr"]'), ids().join(","));
+
+  // Shift+Tab at the top of a mounted file is refused
+  document.activeElement.blur();
+  var tb = editNode("mmm.p01");
+  key(tb, "Tab", { shiftKey: true });
+  chk("outdent out of a mount is blocked", !!nodeAt("mmm.p01") && !nodeAt("p01"), ids().join(","));
+  document.activeElement.blur();
+}
+function phase5() {
+  nodeAt("rrr").querySelector(".twist").click();      // read-only mount
+  nodeAt("xxx").querySelector(".twist").click();      // broken mount
+}
+function phase6() {
+  chk("a read-only mount still loads", !!nodeAt("rrr.q01"), ids().join(","));
+  nodeAt("rrr.q01").querySelector(".title").click();
+  chk("a read-only mount refuses edits",
+      !document.querySelector('.node[data-id="rrr.q01"] .ta-title'));
+  chk("nothing is written to a read-only file", !putsFor("rrr").length, putsFor("rrr").length);
+
+  chk("an unreachable mount says so",
+      !!nodeAt("xxx") && nodeAt("xxx").classList.contains("broken") &&
+      !!nodeAt("xxx").querySelector(".mounterr"),
+      nodeAt("xxx") && nodeAt("xxx").className);
+  chk("nothing is written to a file that failed to load", !putsFor("xxx").length);
+
+  // a permalink into a mounted file
+  nodeAt("mmm.p01").querySelector(".bullet").click();
+  chk("zooming into a mounted node", location.hash === "#mmm.p01", location.hash);
+  chk("the breadcrumb crosses the file boundary",
+      document.querySelectorAll("#crumbs a").length === 3,
+      document.querySelectorAll("#crumbs a").length);
+  document.getElementById("home").click();
+  chk("root again", !location.hash, location.hash);
+}
+function report() {
+  chk("PUT requests were sent", window.__puts.length > 0, window.__puts.length);
+  document.getElementById("results").textContent =
+    log.join("\n") + "\n\nSUMMARY " + ok + " passed, " + bad + " failed";
+  document.title = bad ? "FAILED" : "ALLPASS";
+}
+
 window.onerror = function (m, f, l, c, err) {
-  document.getElementById("results").textContent = "JS ERROR: " + m + " @" + (f||"") + ":" + l +
+  document.getElementById("results").textContent =
+    log.join("\n") + "\n\nJS ERROR: " + m + " @" + (f || "") + ":" + l +
     "\n" + (err && err.stack ? err.stack : "");
   document.title = "ERROR";
 };
-setTimeout(function () {
-  try { run(); } catch (e) {
-    document.getElementById("results").textContent = log.join("\n") +
-      "\n\nTHREW: " + e.message + "\n" + e.stack;
+var phases = [phase1, phase2, phase3, phase4, phase5, phase6, report], at = 0;
+function step() {
+  if (at >= phases.length) return;
+  var fn = phases[at++];
+  try { fn(); } catch (e) {
+    document.getElementById("results").textContent =
+      log.join("\n") + "\n\nTHREW in phase " + at + ": " + e.message + "\n" + e.stack;
     document.title = "THREW";
+    return;
   }
-}, 300);
+  setTimeout(step, 250);
+}
+setTimeout(step, 350);
 </script>
 </body></html>

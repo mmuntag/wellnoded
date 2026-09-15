@@ -42,6 +42,11 @@
     })(DOC.children, []);
     return out;
   }
+  function shortPath(p) {
+    if (!p) return "";
+    var parts = String(p).split("/");
+    return parts.length > 2 ? ".../" + parts.slice(-2).join("/") : String(p);
+  }
   function kidsOf(n) {
     var k = n ? n.children : DOC.children;
     return hideDone ? k.filter(function (x) { return !x.done; }) : k;
@@ -65,7 +70,10 @@
   function nodeEl(n, index, style) {
     var el = document.createElement("div");
     el.className = "node" + (n.done ? " done" : "") +
-                   (collapsed.has(n.id) ? " collapsed" : "");
+                   (collapsed.has(n.id) ? " collapsed" : "") +
+                   (n.mount ? " mount" : "") +
+                   (n.mount && n.mount.ro ? " ro" : "") +
+                   (n.mount_error ? " broken" : "");
     el.dataset.id = n.id;
     var row = document.createElement("div");
     row.className = "row";
@@ -93,6 +101,14 @@
     var t = document.createElement("div");
     t.className = "title";
     t.innerHTML = R.renderInline(n.title);
+    if (n.mount) {
+      var mp = document.createElement("span");
+      mp.className = "mpath" + (n.mount_error ? " err" : "");
+      mp.textContent = (n.mount.ro ? "\u25cb " : "\u2192 ") +
+                       shortPath(n.mount.display || n.mount.raw || "");
+      mp.title = n.mount_error || (n.mount.display || n.mount.raw || "");
+      t.appendChild(mp);
+    }
     if (collapsed.has(n.id) && n.children.length) {
       var cc = document.createElement("span");
       cc.className = "childcount"; cc.textContent = n.children.length;
@@ -103,6 +119,12 @@
       var bd = document.createElement("div");
       bd.className = "body"; bd.innerHTML = R.renderBody(n.body);
       c.appendChild(bd);
+    }
+    if (n.mount_error) {
+      var me = document.createElement("div");
+      me.className = "mounterr";
+      me.textContent = "not included in this export: " + n.mount_error;
+      c.appendChild(me);
     }
     row.appendChild(c);
     el.appendChild(row);

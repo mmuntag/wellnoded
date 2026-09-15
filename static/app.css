@@ -139,6 +139,40 @@ h1.doctitle .math { font-size: 0.95em; }
   vertical-align: 1px;
 }
 
+/* -------------------------------------------------------------- mounts
+   A node whose children live in another file.  It reads as a normal node
+   with a ring instead of a dot, plus a chip naming the file.            */
+.node.mount > .row > .bullet i {
+  width: 8px; height: 8px; background: transparent;
+  border: 2px solid var(--accent); box-sizing: border-box;
+}
+.node.mount.ro > .row > .bullet i { border-color: var(--dim); }
+.node.mount.broken > .row > .bullet i { border-color: #d0473f; }
+.node.mount > .row > .twist { opacity: .55; }
+.node.mount.loading > .row > .twist {
+  opacity: 1; animation: wn-spin 1s linear infinite; color: var(--accent);
+}
+@keyframes wn-spin { to { transform: rotate(360deg); } }
+.node.mount.loading.collapsed > .row > .twist { transform: none; }
+
+.mpath {
+  font: 10px/1.6 var(--ui); color: var(--faint); margin-left: 8px;
+  vertical-align: 1px; white-space: nowrap; user-select: none;
+}
+.mpath.err { color: #d0473f; }
+.title .fallback { color: var(--dim); font-style: italic; }
+
+.mounterr {
+  font: 11px/1.5 var(--ui); color: #d0473f; margin-top: 2px;
+}
+.mounterr a { cursor: pointer; text-decoration: underline; margin-left: 4px; }
+.empty.err { color: #d0473f; cursor: default; }
+
+/* the guide line under a mount is tinted, so it is obvious at a glance
+   where one file stops and the next begins */
+.node.mount > .kids::before { background: var(--accent-soft); width: 2px; }
+.node.mount.ro > .kids::before { background: var(--rule); }
+
 /* ------------------------------------------------------------ editing  */
 .edit textarea {
   display: block; width: 100%; resize: none; overflow: hidden;
