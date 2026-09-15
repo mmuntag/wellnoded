@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wellnoded</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><circle cx='8' cy='8' r='4' fill='%23b06a2c'/></svg>">
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="bar">
+    <nav class="crumbs" id="crumbs"></nav>
+    <button class="btn" id="up" title="Step one level up">&#8593; up</button>
+    <button class="btn" id="home" title="All the way up">&#8962; root</button>
+    <button class="btn" id="hide" title="Hide struck-through nodes">hide done</button>
+    <button class="btn" id="export" title="Download a read-only html copy">export</button>
+    <span class="status" id="status"></span>
+  </header>
+  <h1 class="doctitle" id="doctitle"></h1>
+  <div class="zoomnote" id="zoomnote"></div>
+  <div class="tree" id="tree"></div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="/static/render.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

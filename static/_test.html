@@ -1,0 +1,152 @@
+<!doctype html><html><head><meta charset="utf-8"><title>t</title>
+<link rel="stylesheet" href="/static/app.css"></head><body>
+<div class="wrap">
+  <header class="bar"><nav class="crumbs" id="crumbs"></nav>
+  <button class="btn" id="up"></button><button class="btn" id="home"></button>
+  <button class="btn" id="hide"></button><button class="btn" id="export"></button>
+  <span class="status" id="status"></span></header>
+  <h1 class="doctitle" id="doctitle"></h1><div class="zoomnote" id="zoomnote"></div>
+  <div class="tree" id="tree"></div></div>
+<div class="toast" id="toast"></div>
+<pre id="results"></pre>
+<script>
+window.__puts = [];
+var FIX = {rev:"1", file:"/x/data.md", doc:{header:["# T"], child_style:"bullet", children:[
+  {id:"aaa",title:"alpha",body:"",done:false,child_style:"bullet",children:[]},
+  {id:"bbb",title:"beta",body:"note",done:false,child_style:"bullet",children:[
+     {id:"ccc",title:"gamma",body:"",done:true,child_style:"bullet",children:[]}]}
+]}};
+window.fetch = function (url, opts) {
+  if (opts && opts.method === "PUT") {
+    window.__puts.push(JSON.parse(opts.body));
+    return Promise.resolve({ok:true, status:200, json:function(){return Promise.resolve({rev:String(Date.now())});}});
+  }
+  return Promise.resolve({ok:true, status:200, json:function(){return Promise.resolve(JSON.parse(JSON.stringify(FIX)));}});
+};
+window.confirm = function(){ return true; };
+</script>
+<script src="/static/render.js"></script>
+<script src="/static/app.js"></script>
+<script>
+var log = [], ok = 0, bad = 0;
+function chk(name, cond, extra) {
+  (cond ? ok++ : bad++);
+  log.push((cond ? "PASS  " : "FAIL  ") + name + (cond || !extra ? "" : "   << " + extra));
+}
+function titles() {
+  return [].map.call(document.querySelectorAll("#tree .node"), function (n) {
+    return (n.dataset.id) + ":" + n.querySelector(":scope > .row .title, :scope > .row .ta-title").textContent
+           .replace(/\s+/g," ").trim() + (n.classList.contains("done") ? "*" : "");
+  }).join(" | ");
+}
+function editNode(id) {
+  var ta = document.querySelector('.node[data-id="'+id+'"] .ta-title');
+  if (!ta) {
+    document.querySelector('.node[data-id="'+id+'"] .title').click();
+    ta = document.querySelector('.node[data-id="'+id+'"] .ta-title');
+  }
+  return ta;
+}
+function key(el, k, opt) {
+  var e = new KeyboardEvent("keydown", Object.assign({key:k, bubbles:true, cancelable:true}, opt||{}));
+  el.dispatchEvent(e); return e;
+}
+function type(el, v) {
+  el.value = v; el.dispatchEvent(new Event("input", {bubbles:true}));
+}
+function run() {
+  chk("initial tree", titles() === "aaa:alpha | bbb:beta | ccc:gamma*", titles());
+
+  // click title -> editor
+  document.querySelector('.node[data-id="aaa"] .title').click();
+  var ta = document.querySelector('.node[data-id="aaa"] .ta-title');
+  chk("click opens editor", !!ta && document.activeElement === ta);
+
+  // type + Enter -> new sibling, focused
+  type(ta, "alpha edited");
+  key(ta, "Enter");
+  var ids = [].map.call(document.querySelectorAll("#tree .node"), function(n){return n.dataset.id;});
+  chk("Enter creates a sibling", ids.length === 4, ids.join(","));
+  var newId = ids[1];
+  var ta2 = document.querySelector('.node[data-id="'+newId+'"] .ta-title');
+  chk("new node is focused", !!ta2 && document.activeElement === ta2);
+  chk("3-char id", /^[0-9a-z]{3}$/.test(newId), newId);
+  chk("edit was kept", document.querySelector('.node[data-id="aaa"] .title').textContent.indexOf("alpha edited") === 0,
+      document.querySelector('.node[data-id="aaa"] .title').textContent);
+
+  // Tab -> indent under aaa
+  type(ta2, "nested");
+  key(ta2, "Tab");
+  chk("Tab indents", !!document.querySelector('.node[data-id="aaa"] > .kids > .node[data-id="'+newId+'"]'), titles());
+  var ta3 = document.querySelector('.node[data-id="'+newId+'"] .ta-title');
+  chk("focus survives indent", document.activeElement === ta3);
+
+  // Shift+Tab -> back out
+  key(ta3, "Tab", {shiftKey:true});
+  chk("Shift+Tab outdents", !!document.querySelector('#tree > .node[data-id="'+newId+'"]'), titles());
+
+  // Ctrl+Enter -> strike
+  var ta4 = document.querySelector('.node[data-id="'+newId+'"] .ta-title');
+  key(ta4, "Enter", {ctrlKey:true});
+  chk("Ctrl+Enter strikes", document.querySelector('.node[data-id="'+newId+'"]').classList.contains("done"), titles());
+
+  // hide done
+  document.getElementById("hide").click();
+  chk("hide done hides struck nodes", !document.querySelector('#tree .node[data-id="'+newId+'"]') && !document.querySelector('#tree .node[data-id="ccc"]'), titles());
+  document.getElementById("hide").click();
+  chk("hide done restores", !!document.querySelector('#tree .node[data-id="'+newId+'"]'));
+
+  // Backspace on an empty node deletes it and focuses the previous one
+  document.querySelector('.node[data-id="'+newId+'"] .title').click();
+  var ta5 = document.querySelector('.node[data-id="'+newId+'"] .ta-title');
+  type(ta5, ""); ta5.setSelectionRange(0,0);
+  key(ta5, "Backspace");
+  chk("Backspace deletes empty node", !document.querySelector('.node[data-id="'+newId+'"]'), titles());
+  chk("focus moves to previous", document.activeElement && document.activeElement.classList.contains("ta-title"),
+      document.activeElement && document.activeElement.tagName);
+
+  // Alt+Down reorders (aaa is already in edit mode after the Backspace step)
+  var ta6 = editNode("aaa");
+  key(ta6, "ArrowDown", {altKey:true});
+  var order = [].map.call(document.querySelectorAll("#tree > .node"), function(n){return n.dataset.id;});
+  chk("Alt+Down moves node down", order[0] === "bbb" && order[1] === "aaa", order.join(","));
+
+  // undo
+  document.activeElement.blur();
+  document.dispatchEvent(new KeyboardEvent("keydown", {key:"z", ctrlKey:true, bubbles:true, cancelable:true}));
+  var order2 = [].map.call(document.querySelectorAll("#tree > .node"), function(n){return n.dataset.id;});
+  chk("Ctrl+Z undoes the move", order2[0] === "aaa", order2.join(","));
+
+  // zoom
+  document.querySelector('.node[data-id="bbb"] .bullet').click();
+  chk("zoom shows only children", titles() === "ccc:gamma*", titles());
+  chk("breadcrumb has home + node", document.querySelectorAll("#crumbs a").length === 2,
+      document.querySelectorAll("#crumbs a").length);
+  chk("hash is the node id", location.hash === "#bbb", location.hash);
+  document.getElementById("up").click();
+  chk("up one level returns to root", titles().indexOf("aaa:") === 0, titles());
+
+  // saves happened
+  setTimeout(function () {
+    chk("PUT requests were sent", window.__puts.length > 0, window.__puts.length);
+    var last = window.__puts[window.__puts.length-1];
+    chk("payload carries rev + doc", last && last.rev && last.doc && last.doc.children.length >= 2);
+    document.getElementById("results").textContent =
+      log.join("\n") + "\n\nSUMMARY " + ok + " passed, " + bad + " failed";
+    document.title = bad ? "FAILED" : "ALLPASS";
+  }, 600);
+}
+window.onerror = function (m, f, l, c, err) {
+  document.getElementById("results").textContent = "JS ERROR: " + m + " @" + (f||"") + ":" + l +
+    "\n" + (err && err.stack ? err.stack : "");
+  document.title = "ERROR";
+};
+setTimeout(function () {
+  try { run(); } catch (e) {
+    document.getElementById("results").textContent = log.join("\n") +
+      "\n\nTHREW: " + e.message + "\n" + e.stack;
+    document.title = "THREW";
+  }
+}, 300);
+</script>
+</body></html>

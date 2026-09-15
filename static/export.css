@@ -1,0 +1,5 @@
+/* additions for the read-only export */
+.title, .body { cursor: default !important; }
+.exp-note { font: 11px/1.4 var(--ui); color: var(--faint); margin-left: auto; }
+.row:hover { background: transparent; }
+.bullet, .num { cursor: pointer; }
