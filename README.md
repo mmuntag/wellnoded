@@ -208,6 +208,7 @@ python3 server.py --export chapter.html --export-root fm1   # just that subtree
 | `Backspace` at the start of an empty node | delete it |
 | `↑` / `↓` at the edge of a line | previous / next node |
 | `Esc` | leave the editor (from the body: back to the title) |
+| `Enter` (not editing) | re-enter the node you last left |
 | `Ctrl+Z` / `Ctrl+Shift+Z` | undo / redo |
 | `Ctrl+S` | save now |
 | `h` | toggle hide-done (when not editing) |

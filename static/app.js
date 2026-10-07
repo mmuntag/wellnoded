@@ -14,6 +14,7 @@
     docs: {},                   // docKey -> entry (see loadDoc); "" is the root
     zoom: null,                 // uid we are zoomed into
     editing: null,              // {uid, field}
+    lastEdited: null,           // uid of the node the editor last left
     collapsed: load("wn.collapsed", []),
     hideDone: load("wn.hideDone", false),
     saving: 0, lastErr: null,
@@ -746,6 +747,7 @@
   function commitEdit(quiet) {
     if (!state.editing) return;
     var uid = state.editing.uid;
+    state.lastEdited = uid;
     var el = document.querySelector('.node[data-id="' + uid + '"] .edit') ||
              document.querySelector("#doctitle .edit");
     if (el) {
@@ -1064,6 +1066,10 @@
     if (mod && e.key.toLowerCase() === "s") { e.preventDefault(); commitEdit(); save(true); toast("saved"); return; }
     if (e.target.tagName === "TEXTAREA") return;
     if (e.key === "Escape") { closeMenu(); return; }
+    if (e.key === "Enter" && !mod && !e.shiftKey && !e.altKey && state.lastEdited &&
+        !/^(INPUT|BUTTON|SELECT|A)$/.test(e.target.tagName) && find(state.lastEdited)) {
+      e.preventDefault(); startEdit(state.lastEdited, "title", "end"); return;
+    }
     if (mod && e.altKey && e.key === "ArrowUp") { e.preventDefault(); upOne(); return; }
     if (e.key === "h" && !mod) { e.preventDefault(); $("hide").click(); }
   });
