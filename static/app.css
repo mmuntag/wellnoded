@@ -7,7 +7,8 @@
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
   --ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --indent: 26px;
+  --text: var(--ui);
+  --indent: 38px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -22,7 +23,7 @@
 html, body { margin: 0; padding: 0; }
 body {
   background: var(--bg); color: var(--ink);
-  font: 15px/1.55 var(--serif);
+  font: 15px/1.55 var(--text);
   -webkit-font-smoothing: antialiased;
 }
 a { color: var(--accent); }
@@ -70,17 +71,25 @@ header.bar {
 .status.err { color: #d0473f; font-weight: 600; }
 
 h1.doctitle {
-  font: 600 27px/1.25 var(--serif); margin: 10px 0 2px; letter-spacing: -0.01em;
+  font: 600 27px/1.25 var(--text); margin: 10px 0 2px; letter-spacing: -0.015em;
 }
 h1.doctitle .math { font-size: 0.95em; }
 .zoomnote { font: 12px/1 var(--ui); color: var(--faint); margin-bottom: 14px; }
 
 /* -------------------------------------------------------------- tree   */
 .tree { margin: 0; padding: 0; }
-.node { position: relative; }
+.node { position: relative; margin-top: var(--gap); }
+/* vertical space above a row shrinks with depth: top-level items are
+   clearly separated, deep detail stays compact */
+.node                                          { --gap: 2px; }
+.tree > .node                                  { --gap: 14px; }
+.tree > .node > .kids > .node                  { --gap: 8px; }
+.tree > .node > .kids > .node > .kids > .node  { --gap: 5px; }
+.tree > .node:first-child                      { margin-top: 0; }
 .node > .kids { margin-left: var(--indent); position: relative; }
 .node > .kids::before {
-  content: ""; position: absolute; left: -13px; top: 2px; bottom: 4px;
+  content: ""; position: absolute; left: calc(var(--indent) / -2);
+  top: 2px; bottom: 4px;
   width: 1px; background: var(--rule);
 }
 .node.collapsed > .kids { display: none; }
@@ -179,9 +188,9 @@ h1.doctitle .math { font-size: 0.95em; }
   background: transparent; border: 0; padding: 0; margin: 0;
   color: inherit; font: inherit; outline: none;
 }
-.edit .ta-title { font: 15px/1.55 var(--serif); }
+.edit .ta-title { font: 15px/1.55 var(--text); }
 .edit .ta-body {
-  font: 0.93em/1.5 var(--serif); color: var(--dim); margin-top: 2px;
+  font: 0.93em/1.5 var(--text); color: var(--dim); margin-top: 2px;
   border-left: 2px solid var(--rule); padding-left: 8px;
 }
 .edit .ta-body::placeholder { color: var(--faint); font-style: italic; }
@@ -266,7 +275,7 @@ h1.doctitle .math { font-size: 0.95em; }
                 white-space: normal; }
 
 @media (max-width: 620px) {
-  :root { --indent: 20px; }
+  :root { --indent: 26px; }
   .wrap { padding: 0 12px 45vh; }
   header.bar { margin: 0 -12px 12px; padding: 8px 12px; }
   .dots { opacity: 1; }
